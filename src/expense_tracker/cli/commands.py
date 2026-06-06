@@ -19,6 +19,7 @@ from src.expense_tracker.services.summary import MonthlySummary, build_monthly_s
 from src.expense_tracker.utils.validators import (
     VALID_CATEGORIES,
     parse_amount,
+    parse_expense_date,
     validate_description,
     validate_month,
 )
@@ -35,6 +36,11 @@ def build_parser() -> ArgumentParser:
     add_parser.add_argument("--amount", required=True, help="Expense amount, such as 12.50.")
     add_parser.add_argument("--category", required=True, choices=VALID_CATEGORIES)
     add_parser.add_argument("--description", required=True)
+    add_parser.add_argument(
+        "--date",
+        default=date.today().isoformat(),
+        help="Expense date in YYYY-MM-DD format. Defaults to today.",
+    )
 
     summary_parser = subparsers.add_parser("summary", help="Show a monthly summary.")
     summary_parser.add_argument(
@@ -68,7 +74,7 @@ def _run_add_command(arguments: Namespace, data_file: Path) -> int:
             amount=parse_amount(arguments.amount),
             category=arguments.category,
             description=validate_description(arguments.description),
-            expense_date=date.today(),
+            expense_date=parse_expense_date(arguments.date),
         )
         expenses = load_expenses(data_file)
         expenses.append(expense)

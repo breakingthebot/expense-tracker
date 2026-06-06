@@ -55,7 +55,7 @@ python -m src.expense_tracker.main interactive
 Add an expense directly:
 
 ```powershell
-python -m src.expense_tracker.main add --amount 12.50 --category Food --description "Lunch"
+python -m src.expense_tracker.main add --amount 12.50 --category Food --description "Lunch" --date 2026-06-01
 ```
 
 View the current month summary:

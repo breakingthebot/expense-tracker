@@ -6,6 +6,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from datetime import date
 import io
 import unittest
 
@@ -31,6 +32,8 @@ class CommandTests(unittest.TestCase):
                         "Food",
                         "--description",
                         "Lunch",
+                        "--date",
+                        "2026-06-01",
                     ],
                 )
 
@@ -39,6 +42,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(len(expenses), 1)
         self.assertEqual(expenses[0].category, "Food")
+        self.assertEqual(expenses[0].expense_date, date(2026, 6, 1))
 
 
 if __name__ == "__main__":

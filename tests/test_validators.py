@@ -3,11 +3,13 @@
 # Connects to: src/expense_tracker/utils/validators.py
 # Created: 2026-06-06
 
+from datetime import date
 from decimal import Decimal
 import unittest
 
 from src.expense_tracker.utils.validators import (
     parse_amount,
+    parse_expense_date,
     validate_category,
     validate_description,
     validate_month,
@@ -34,6 +36,15 @@ class ValidatorTests(unittest.TestCase):
         """Blank descriptions should not be saved."""
         with self.assertRaises(ValueError):
             validate_description("   ")
+
+    def test_parse_expense_date_accepts_iso_date(self) -> None:
+        """Expense dates use YYYY-MM-DD format."""
+        self.assertEqual(parse_expense_date("2026-06-01"), date(2026, 6, 1))
+
+    def test_parse_expense_date_rejects_invalid_date(self) -> None:
+        """Expense date validation catches impossible dates."""
+        with self.assertRaises(ValueError):
+            parse_expense_date("2026-02-30")
 
     def test_validate_month_rejects_invalid_month_number(self) -> None:
         """Month validation catches impossible month numbers."""

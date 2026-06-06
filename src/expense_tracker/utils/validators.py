@@ -1,8 +1,9 @@
 # src/expense_tracker/utils/validators.py
 # Validates and normalizes user input before records are saved.
-# Connects to: src/expense_tracker/cli/menu.py, src/expense_tracker/models/expense.py
+# Connects to: src/expense_tracker/cli/menu.py, src/expense_tracker/cli/commands.py
 # Created: 2026-06-06
 
+from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 CENTS = Decimal("0.01")
@@ -51,6 +52,15 @@ def validate_description(description: str) -> str:
             f"Description must be {MAX_DESCRIPTION_LENGTH} characters or fewer."
         )
     return normalized_description
+
+
+def parse_expense_date(raw_date: str) -> date:
+    """Validate an expense date string and return a date object."""
+    normalized_date = raw_date.strip()
+    try:
+        return date.fromisoformat(normalized_date)
+    except ValueError as exc:
+        raise ValueError("Date must use YYYY-MM-DD format.") from exc
 
 
 def validate_month(raw_month: str) -> str:
