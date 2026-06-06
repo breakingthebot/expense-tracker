@@ -15,7 +15,7 @@ from src.expense_tracker.services.storage import load_expenses
 
 
 class CommandTests(unittest.TestCase):
-    """Verify command-mode add behavior."""
+    """Verify command-mode behavior."""
 
     def test_add_command_saves_expense(self) -> None:
         """The add command stores a validated expense in JSON."""
@@ -43,6 +43,64 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(len(expenses), 1)
         self.assertEqual(expenses[0].category, "Food")
         self.assertEqual(expenses[0].expense_date, date(2026, 6, 1))
+
+    def test_list_command_prints_saved_expenses(self) -> None:
+        """The list command displays saved expenses in date order."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            with patch("sys.stdout", new_callable=io.StringIO):
+                run_cli(
+                    data_file,
+                    [
+                        "add",
+                        "--amount",
+                        "10.50",
+                        "--category",
+                        "Food",
+                        "--description",
+                        "Lunch",
+                        "--date",
+                        "2026-06-01",
+                    ],
+                )
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(data_file, ["list"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("All expenses", output.getvalue())
+        self.assertIn("2026-06-01 | Food | $10.50 | Lunch", output.getvalue())
+
+    def test_list_command_filters_by_month(self) -> None:
+        """The list command can filter expenses by YYYY-MM."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            for raw_date, description in (
+                ("2026-06-01", "Lunch"),
+                ("2026-07-01", "Dinner"),
+            ):
+                with patch("sys.stdout", new_callable=io.StringIO):
+                    run_cli(
+                        data_file,
+                        [
+                            "add",
+                            "--amount",
+                            "10.50",
+                            "--category",
+                            "Food",
+                            "--description",
+                            description,
+                            "--date",
+                            raw_date,
+                        ],
+                    )
+
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(data_file, ["list", "--month", "2026-06"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Expenses for 2026-06", output.getvalue())
+        self.assertIn("Lunch", output.getvalue())
+        self.assertNotIn("Dinner", output.getvalue())
 
 
 if __name__ == "__main__":

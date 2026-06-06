@@ -1,5 +1,5 @@
 # src/expense_tracker/cli/commands.py
-# Provides non-interactive command parsing for adding and summarizing expenses.
+# Provides non-interactive command parsing for adding, listing, and summarizing expenses.
 # Connects to: src/expense_tracker/services/storage.py, src/expense_tracker/services/summary.py
 # Created: 2026-06-06
 
@@ -49,6 +49,12 @@ def build_parser() -> ArgumentParser:
         help="Month to summarize in YYYY-MM format.",
     )
 
+    list_parser = subparsers.add_parser("list", help="List saved expenses.")
+    list_parser.add_argument(
+        "--month",
+        help="Optional month filter in YYYY-MM format.",
+    )
+
     subparsers.add_parser("interactive", help="Open the guided interactive menu.")
     return parser
 
@@ -60,6 +66,8 @@ def run_cli(data_file: Path, arguments: list[str] | None = None) -> int:
 
     if parsed_arguments.command == "add":
         return _run_add_command(parsed_arguments, data_file)
+    if parsed_arguments.command == "list":
+        return _run_list_command(parsed_arguments, data_file)
     if parsed_arguments.command == "summary":
         return _run_summary_command(parsed_arguments, data_file)
 
@@ -88,6 +96,20 @@ def _run_add_command(arguments: Namespace, data_file: Path) -> int:
     return 0
 
 
+def _run_list_command(arguments: Namespace, data_file: Path) -> int:
+    """Print saved expenses, optionally filtered by month."""
+    try:
+        month = validate_month(arguments.month) if arguments.month else None
+        expenses = load_expenses(data_file)
+    except (ExpenseStorageError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    filtered_expenses = _filter_expenses_by_month(expenses, month)
+    _print_expenses(filtered_expenses, month)
+    return 0
+
+
 def _run_summary_command(arguments: Namespace, data_file: Path) -> int:
     """Print a monthly summary from command arguments."""
     try:
@@ -99,6 +121,32 @@ def _run_summary_command(arguments: Namespace, data_file: Path) -> int:
 
     _print_command_summary(build_monthly_summary(expenses, month))
     return 0
+
+
+def _filter_expenses_by_month(expenses: list[Expense], month: str | None) -> list[Expense]:
+    """Return expenses for the selected month, or all expenses when omitted."""
+    if month is None:
+        return expenses
+    return [expense for expense in expenses if expense.month == month]
+
+
+def _print_expenses(expenses: list[Expense], month: str | None) -> None:
+    """Print expense records in a readable table-like format."""
+    title = f"Expenses for {month}" if month else "All expenses"
+    print(title)
+
+    if not expenses:
+        print("No expenses found.")
+        return
+
+    sorted_expenses = sorted(expenses, key=lambda expense: expense.expense_date)
+    for expense in sorted_expenses:
+        print(
+            f"{expense.expense_date.isoformat()} | "
+            f"{expense.category} | "
+            f"${expense.amount} | "
+            f"{expense.description}"
+        )
 
 
 def _print_command_summary(summary: MonthlySummary) -> None:

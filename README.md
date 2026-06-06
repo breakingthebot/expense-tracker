@@ -64,6 +64,18 @@ View the current month summary:
 python -m src.expense_tracker.main summary
 ```
 
+List saved expenses:
+
+```powershell
+python -m src.expense_tracker.main list
+```
+
+List expenses for a specific month:
+
+```powershell
+python -m src.expense_tracker.main list --month 2026-06
+```
+
 View a specific month:
 
 ```powershell
