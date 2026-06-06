@@ -82,6 +82,12 @@ Delete an expense by ID:
 python -m src.expense_tracker.main delete --id expense-id-from-list
 ```
 
+Edit an expense by ID:
+
+```powershell
+python -m src.expense_tracker.main edit --id expense-id-from-list --amount 14.25 --category Food --description "Client lunch" --date 2026-06-02
+```
+
 Export expenses to CSV:
 
 ```powershell
@@ -127,4 +133,4 @@ The app supports both an interactive menu and direct command-line commands. That
 - The JSON data file is ignored by Git because personal spending data should not be committed.
 - Categories are centralized in `src/expense_tracker/utils/validators.py`.
 - Storage writes through a temporary file before replacing the JSON file, reducing the chance of corrupting saved data.
-- The next strong portfolio improvements would be edit commands and richer reporting.
+- The next strong portfolio improvement would be richer reporting.

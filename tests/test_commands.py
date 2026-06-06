@@ -144,6 +144,78 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIn("Error: No expense found with that ID.", output.getvalue())
 
+    def test_edit_command_updates_saved_expense(self) -> None:
+        """The edit command updates provided fields and preserves the expense ID."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            with patch("sys.stdout", new_callable=io.StringIO):
+                run_cli(
+                    data_file,
+                    [
+                        "add",
+                        "--amount",
+                        "10.50",
+                        "--category",
+                        "Food",
+                        "--description",
+                        "Lunch",
+                        "--date",
+                        "2026-06-01",
+                    ],
+                )
+            original_expense = load_expenses(data_file)[0]
+
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(
+                    data_file,
+                    [
+                        "edit",
+                        "--id",
+                        original_expense.expense_id,
+                        "--amount",
+                        "12.25",
+                        "--category",
+                        "Entertainment",
+                        "--description",
+                        "Movie",
+                        "--date",
+                        "2026-06-02",
+                    ],
+                )
+
+            edited_expense = load_expenses(data_file)[0]
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(edited_expense.expense_id, original_expense.expense_id)
+        self.assertEqual(str(edited_expense.amount), "12.25")
+        self.assertEqual(edited_expense.category, "Entertainment")
+        self.assertEqual(edited_expense.description, "Movie")
+        self.assertEqual(edited_expense.expense_date, date(2026, 6, 2))
+        self.assertIn(f"Updated expense {original_expense.expense_id}.", output.getvalue())
+
+    def test_edit_command_requires_update_field(self) -> None:
+        """The edit command rejects requests that do not change any fields."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(data_file, ["edit", "--id", "expense-1"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Error: Provide at least one field to update.", output.getvalue())
+
+    def test_edit_command_returns_error_for_missing_id(self) -> None:
+        """The edit command reports when the requested ID does not exist."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(
+                    data_file,
+                    ["edit", "--id", "missing-id", "--amount", "12.25"],
+                )
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Error: No expense found with that ID.", output.getvalue())
+
     def test_export_command_writes_csv_file(self) -> None:
         """The export command writes saved expenses to CSV."""
         with TemporaryDirectory() as temporary_directory:

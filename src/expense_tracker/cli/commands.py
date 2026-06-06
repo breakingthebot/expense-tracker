@@ -71,6 +71,21 @@ def build_parser() -> ArgumentParser:
         help="Expense ID from the list command.",
     )
 
+    edit_parser = subparsers.add_parser("edit", help="Edit an expense by ID.")
+    edit_parser.add_argument(
+        "--id",
+        required=True,
+        help="Expense ID from the list command.",
+    )
+    edit_parser.add_argument("--amount", help="Updated expense amount.")
+    edit_parser.add_argument(
+        "--category",
+        choices=VALID_CATEGORIES,
+        help="Updated category.",
+    )
+    edit_parser.add_argument("--description", help="Updated description.")
+    edit_parser.add_argument("--date", help="Updated date in YYYY-MM-DD format.")
+
     export_parser = subparsers.add_parser("export", help="Export expenses to CSV.")
     export_parser.add_argument(
         "--output",
@@ -95,6 +110,8 @@ def run_cli(data_file: Path, arguments: list[str] | None = None) -> int:
         return _run_add_command(parsed_arguments, data_file)
     if parsed_arguments.command == "delete":
         return _run_delete_command(parsed_arguments, data_file)
+    if parsed_arguments.command == "edit":
+        return _run_edit_command(parsed_arguments, data_file)
     if parsed_arguments.command == "export":
         return _run_export_command(parsed_arguments, data_file)
     if parsed_arguments.command == "list":
@@ -148,6 +165,25 @@ def _run_delete_command(arguments: Namespace, data_file: Path) -> int:
     return 0
 
 
+def _run_edit_command(arguments: Namespace, data_file: Path) -> int:
+    """Edit one or more fields on an existing expense."""
+    if not _has_edit_fields(arguments):
+        print("Error: Provide at least one field to update.")
+        return 1
+
+    try:
+        expenses = load_expenses(data_file)
+        updated_expenses = _replace_edited_expense(expenses, arguments)
+        save_expenses(updated_expenses, data_file)
+    except (ExpenseStorageError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    LOGGER.info("Expense edited from command.", extra={"expense_id": arguments.id})
+    print(f"Updated expense {arguments.id}.")
+    return 0
+
+
 def _run_export_command(arguments: Namespace, data_file: Path) -> int:
     """Export saved expenses to a CSV file."""
     try:
@@ -188,6 +224,63 @@ def _run_summary_command(arguments: Namespace, data_file: Path) -> int:
 
     _print_command_summary(build_monthly_summary(expenses, month))
     return 0
+
+
+def _has_edit_fields(arguments: Namespace) -> bool:
+    """Return whether the edit command includes at least one field update."""
+    return any(
+        value is not None
+        for value in (
+            arguments.amount,
+            arguments.category,
+            arguments.description,
+            arguments.date,
+        )
+    )
+
+
+def _replace_edited_expense(expenses: list[Expense], arguments: Namespace) -> list[Expense]:
+    """Return expenses with the matching record replaced by edited data."""
+    updated_expenses: list[Expense] = []
+    found_expense = False
+
+    for expense in expenses:
+        if expense.expense_id != arguments.id:
+            updated_expenses.append(expense)
+            continue
+
+        updated_expenses.append(_build_edited_expense(expense, arguments))
+        found_expense = True
+
+    if not found_expense:
+        raise ValueError("No expense found with that ID.")
+
+    return updated_expenses
+
+
+def _build_edited_expense(expense: Expense, arguments: Namespace) -> Expense:
+    """Build an edited expense while preserving unspecified fields."""
+    return Expense(
+        amount=(
+            parse_amount(arguments.amount)
+            if arguments.amount is not None
+            else expense.amount
+        ),
+        category=(
+            arguments.category if arguments.category is not None else expense.category
+        ),
+        description=(
+            validate_description(arguments.description)
+            if arguments.description is not None
+            else expense.description
+        ),
+        expense_date=(
+            parse_expense_date(arguments.date)
+            if arguments.date is not None
+            else expense.expense_date
+        ),
+        expense_id=expense.expense_id,
+    )
 
 
 def _filter_expenses_by_month(expenses: list[Expense], month: str | None) -> list[Expense]:
