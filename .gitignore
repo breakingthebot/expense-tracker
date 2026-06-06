@@ -1,0 +1,11 @@
+.env
+venv/
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+*.log
+dist/
+build/
+data/expenses.json
+AGENTS.md
