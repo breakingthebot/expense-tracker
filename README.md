@@ -130,6 +130,18 @@ List monthly budgets:
 python -m src.expense_tracker.main budget list --month 2026-06
 ```
 
+Create a recurring expense template:
+
+```powershell
+python -m src.expense_tracker.main recurring add --amount 1200.00 --category Housing --description "Rent" --day 1
+```
+
+Apply recurring templates to a month:
+
+```powershell
+python -m src.expense_tracker.main recurring apply --month 2026-06
+```
+
 The root launcher also starts the app:
 
 ```powershell
@@ -156,6 +168,7 @@ The app supports both a questionnaire-style menu and direct command-line command
 
 - The JSON data file is ignored by Git because personal spending data should not be committed.
 - The budget data file is ignored by Git because personal financial targets should not be committed.
+- The recurring template data file is ignored by Git because personal bill patterns should not be committed.
 - Categories are centralized in `src/expense_tracker/utils/validators.py`.
 - Storage writes through a temporary file before replacing the JSON file, reducing the chance of corrupting saved data.
-- The next strong portfolio improvement would be recurring expense templates.
+- The next strong portfolio improvement would be duplicate protection when applying recurring templates.

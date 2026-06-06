@@ -9,4 +9,5 @@ dist/
 build/
 data/expenses.json
 data/budgets.json
+data/recurring_templates.json
 AGENTS.md

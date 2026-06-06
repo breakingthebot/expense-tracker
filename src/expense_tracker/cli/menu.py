@@ -19,6 +19,7 @@ from src.expense_tracker.cli.prompts import (
     prompt_for_output_path,
 )
 from src.expense_tracker.models.expense import Expense
+from src.expense_tracker.models.recurring_template import RecurringTemplate
 from src.expense_tracker.services.budgets import (
     BudgetStorageError,
     get_budget_file_path,
@@ -30,6 +31,13 @@ from src.expense_tracker.services.budgets import (
 from src.expense_tracker.services.exporter import (
     ExpenseExportError,
     export_expenses_to_csv,
+)
+from src.expense_tracker.services.recurring import (
+    RecurringTemplateStorageError,
+    apply_templates_to_month,
+    get_recurring_file_path,
+    load_recurring_templates,
+    save_recurring_templates,
 )
 from src.expense_tracker.services.storage import (
     ExpenseStorageError,
@@ -48,7 +56,10 @@ MENU_VIEW_REPORT = "6"
 MENU_EXPORT_CSV = "7"
 MENU_SET_BUDGET = "8"
 MENU_LIST_BUDGETS = "9"
-MENU_EXIT = "10"
+MENU_ADD_RECURRING = "10"
+MENU_LIST_RECURRING = "11"
+MENU_APPLY_RECURRING = "12"
+MENU_EXIT = "13"
 
 
 def run_menu(data_file: Path) -> None:
@@ -83,11 +94,17 @@ def run_menu(data_file: Path) -> None:
             _handle_set_budget(data_file)
         elif choice == MENU_LIST_BUDGETS:
             _handle_list_budgets(data_file)
+        elif choice == MENU_ADD_RECURRING:
+            _handle_add_recurring_template(data_file)
+        elif choice == MENU_LIST_RECURRING:
+            _handle_list_recurring_templates(data_file)
+        elif choice == MENU_APPLY_RECURRING:
+            _handle_apply_recurring_templates(expenses, data_file)
         elif choice == MENU_EXIT:
             print("Goodbye.")
             return
         else:
-            print("Please choose a number from 1 to 10.")
+            print("Please choose a number from 1 to 13.")
 
 
 def _print_menu_options() -> None:
@@ -101,7 +118,10 @@ def _print_menu_options() -> None:
     print("7. Export CSV")
     print("8. Set budget")
     print("9. List budgets")
-    print("10. Exit")
+    print("10. Add recurring template")
+    print("11. List recurring templates")
+    print("12. Apply recurring templates")
+    print("13. Exit")
 
 
 def _handle_add_expense(expenses: list[Expense], data_file: Path) -> None:
@@ -250,6 +270,57 @@ def _handle_list_budgets(data_file: Path) -> None:
         print(f"{category}: ${amount}")
 
 
+def _handle_add_recurring_template(data_file: Path) -> None:
+    """Prompt for a recurring template and save it."""
+    template_file = get_recurring_file_path(data_file)
+    template = RecurringTemplate(
+        amount=prompt_for_amount(),
+        category=prompt_for_category(),
+        description=prompt_for_description(),
+        day=_prompt_for_recurring_day(),
+        template_id=str(uuid4()),
+    )
+
+    try:
+        templates = load_recurring_templates(template_file)
+        templates.append(template)
+        save_recurring_templates(templates, template_file)
+    except RecurringTemplateStorageError as exc:
+        print(f"Error: {exc}")
+        return
+
+    print(f"Created recurring template {template.template_id}.")
+
+
+def _handle_list_recurring_templates(data_file: Path) -> None:
+    """List saved recurring templates."""
+    try:
+        templates = load_recurring_templates(get_recurring_file_path(data_file))
+    except RecurringTemplateStorageError as exc:
+        print(f"Error: {exc}")
+        return
+
+    _print_recurring_templates(templates)
+
+
+def _handle_apply_recurring_templates(
+    expenses: list[Expense],
+    data_file: Path,
+) -> None:
+    """Prompt for a month and create expenses from recurring templates."""
+    month = prompt_for_month("Month to apply templates")
+    try:
+        templates = load_recurring_templates(get_recurring_file_path(data_file))
+        created_expenses = apply_templates_to_month(templates, month)
+        save_expenses(expenses + created_expenses, data_file)
+    except (RecurringTemplateStorageError, ExpenseStorageError) as exc:
+        print(f"Error: {exc}")
+        return
+
+    expenses.extend(created_expenses)
+    print(f"Applied {len(created_expenses)} recurring template(s) to {month}.")
+
+
 def _save_replacement_expenses(
     current_expenses: list[Expense],
     replacement_expenses: list[Expense],
@@ -279,3 +350,35 @@ def _filter_expenses_by_month(expenses: list[Expense], month: str | None) -> lis
     if month is None:
         return expenses
     return [expense for expense in expenses if expense.month == month]
+
+
+def _prompt_for_recurring_day() -> int:
+    """Prompt until the user enters a valid recurring day of month."""
+    while True:
+        raw_day = input("Day of month [1-31]: ").strip()
+        if not raw_day.isdigit():
+            print("Error: Recurring day must be a number from 1 to 31.")
+            continue
+
+        day = int(raw_day)
+        if day < 1 or day > 31:
+            print("Error: Recurring day must be between 1 and 31.")
+            continue
+        return day
+
+
+def _print_recurring_templates(templates: list[RecurringTemplate]) -> None:
+    """Print recurring expense templates."""
+    print("\nRecurring templates")
+    if not templates:
+        print("No recurring templates saved.")
+        return
+
+    for template in sorted(templates, key=lambda item: item.day):
+        print(
+            f"{template.template_id} | "
+            f"day {template.day} | "
+            f"{template.category} | "
+            f"${template.amount} | "
+            f"{template.description}"
+        )

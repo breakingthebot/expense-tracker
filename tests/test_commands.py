@@ -397,6 +397,48 @@ class CommandTests(unittest.TestCase):
             output.getvalue(),
         )
 
+    def test_recurring_commands_create_list_and_apply_template(self) -> None:
+        """Recurring commands create templates and apply them as expenses."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+
+            with patch("sys.stdout", new_callable=io.StringIO) as add_output:
+                add_exit_code = run_cli(
+                    data_file,
+                    [
+                        "recurring",
+                        "add",
+                        "--amount",
+                        "1200.00",
+                        "--category",
+                        "Housing",
+                        "--description",
+                        "Rent",
+                        "--day",
+                        "1",
+                    ],
+                )
+
+            with patch("sys.stdout", new_callable=io.StringIO) as list_output:
+                list_exit_code = run_cli(data_file, ["recurring", "list"])
+
+            with patch("sys.stdout", new_callable=io.StringIO) as apply_output:
+                apply_exit_code = run_cli(
+                    data_file,
+                    ["recurring", "apply", "--month", "2026-06"],
+                )
+
+            expenses = load_expenses(data_file)
+
+        self.assertEqual(add_exit_code, 0)
+        self.assertEqual(list_exit_code, 0)
+        self.assertEqual(apply_exit_code, 0)
+        self.assertIn("Created recurring template", add_output.getvalue())
+        self.assertIn("Housing", list_output.getvalue())
+        self.assertIn("Applied 1 recurring template(s) to 2026-06.", apply_output.getvalue())
+        self.assertEqual(len(expenses), 1)
+        self.assertEqual(expenses[0].description, "Rent")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from src.expense_tracker.cli.menu import run_menu
 from src.expense_tracker.models.expense import Expense
+from src.expense_tracker.models.recurring_template import RecurringTemplate
 from src.expense_tracker.services.budgets import (
     BudgetStorageError,
     get_budget_file_path,
@@ -23,6 +24,13 @@ from src.expense_tracker.services.budgets import (
 from src.expense_tracker.services.exporter import (
     ExpenseExportError,
     export_expenses_to_csv,
+)
+from src.expense_tracker.services.recurring import (
+    RecurringTemplateStorageError,
+    apply_templates_to_month,
+    get_recurring_file_path,
+    load_recurring_templates,
+    save_recurring_templates,
 )
 from src.expense_tracker.services.storage import (
     ExpenseStorageError,
@@ -40,6 +48,8 @@ from src.expense_tracker.utils.validators import (
 )
 
 LOGGER = logging.getLogger(__name__)
+MIN_RECURRING_DAY = 1
+MAX_RECURRING_DAY = 31
 
 
 def build_parser() -> ArgumentParser:
@@ -108,6 +118,41 @@ def build_parser() -> ArgumentParser:
         help="Budget month in YYYY-MM format.",
     )
 
+    recurring_parser = subparsers.add_parser(
+        "recurring",
+        help="Manage recurring expense templates.",
+    )
+    recurring_subparsers = recurring_parser.add_subparsers(dest="recurring_action")
+
+    recurring_add_parser = recurring_subparsers.add_parser(
+        "add",
+        help="Create a recurring expense template.",
+    )
+    recurring_add_parser.add_argument("--amount", required=True)
+    recurring_add_parser.add_argument(
+        "--category",
+        required=True,
+        choices=VALID_CATEGORIES,
+    )
+    recurring_add_parser.add_argument("--description", required=True)
+    recurring_add_parser.add_argument(
+        "--day",
+        required=True,
+        help="Day of month from 1 to 31.",
+    )
+
+    recurring_subparsers.add_parser("list", help="List recurring templates.")
+
+    recurring_apply_parser = recurring_subparsers.add_parser(
+        "apply",
+        help="Apply recurring templates to a month.",
+    )
+    recurring_apply_parser.add_argument(
+        "--month",
+        required=True,
+        help="Month to create expenses for in YYYY-MM format.",
+    )
+
     list_parser = subparsers.add_parser("list", help="List saved expenses.")
     list_parser.add_argument(
         "--month",
@@ -168,6 +213,8 @@ def run_cli(data_file: Path, arguments: list[str] | None = None) -> int:
         return _run_export_command(parsed_arguments, data_file)
     if parsed_arguments.command == "list":
         return _run_list_command(parsed_arguments, data_file)
+    if parsed_arguments.command == "recurring":
+        return _run_recurring_command(parsed_arguments, data_file)
     if parsed_arguments.command == "report":
         return _run_report_command(parsed_arguments, data_file)
     if parsed_arguments.command == "summary":
@@ -239,6 +286,71 @@ def _run_budget_list_command(arguments: Namespace, data_file: Path) -> int:
         return 1
 
     _print_budgets(month, budgets)
+    return 0
+
+
+def _run_recurring_command(arguments: Namespace, data_file: Path) -> int:
+    """Run a recurring template subcommand."""
+    if arguments.recurring_action == "add":
+        return _run_recurring_add_command(arguments, data_file)
+    if arguments.recurring_action == "list":
+        return _run_recurring_list_command(data_file)
+    if arguments.recurring_action == "apply":
+        return _run_recurring_apply_command(arguments, data_file)
+
+    print("Error: Choose a recurring action: add, list, or apply.")
+    return 1
+
+
+def _run_recurring_add_command(arguments: Namespace, data_file: Path) -> int:
+    """Create a recurring expense template."""
+    template_file = get_recurring_file_path(data_file)
+    try:
+        template = RecurringTemplate(
+            amount=parse_amount(arguments.amount),
+            category=validate_category(arguments.category),
+            description=validate_description(arguments.description),
+            day=_parse_recurring_day(arguments.day),
+            template_id=str(uuid4()),
+        )
+        templates = load_recurring_templates(template_file)
+        templates.append(template)
+        save_recurring_templates(templates, template_file)
+    except (RecurringTemplateStorageError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    print(f"Created recurring template {template.template_id}.")
+    return 0
+
+
+def _run_recurring_list_command(data_file: Path) -> int:
+    """List recurring expense templates."""
+    template_file = get_recurring_file_path(data_file)
+    try:
+        templates = load_recurring_templates(template_file)
+    except RecurringTemplateStorageError as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    _print_recurring_templates(templates)
+    return 0
+
+
+def _run_recurring_apply_command(arguments: Namespace, data_file: Path) -> int:
+    """Create expenses from recurring templates for a selected month."""
+    template_file = get_recurring_file_path(data_file)
+    try:
+        month = validate_month(arguments.month)
+        templates = load_recurring_templates(template_file)
+        expenses = load_expenses(data_file)
+        created_expenses = apply_templates_to_month(templates, month)
+        save_expenses(expenses + created_expenses, data_file)
+    except (RecurringTemplateStorageError, ExpenseStorageError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    print(f"Applied {len(created_expenses)} recurring template(s) to {month}.")
     return 0
 
 
@@ -402,6 +514,17 @@ def _filter_expenses_by_month(expenses: list[Expense], month: str | None) -> lis
     return [expense for expense in expenses if expense.month == month]
 
 
+def _parse_recurring_day(raw_day: str) -> int:
+    """Validate and return a recurring template day of month."""
+    if not raw_day.strip().isdigit():
+        raise ValueError("Recurring day must be a number from 1 to 31.")
+
+    day = int(raw_day)
+    if day < MIN_RECURRING_DAY or day > MAX_RECURRING_DAY:
+        raise ValueError("Recurring day must be between 1 and 31.")
+    return day
+
+
 def _print_expenses(expenses: list[Expense], month: str | None) -> None:
     """Print expense records in a readable table-like format."""
     title = f"Expenses for {month}" if month else "All expenses"
@@ -443,6 +566,23 @@ def _print_budgets(month: str, budgets: dict[str, Decimal]) -> None:
 
     for category, amount in sorted(budgets.items()):
         print(f"{category}: ${amount}")
+
+
+def _print_recurring_templates(templates: list[RecurringTemplate]) -> None:
+    """Print recurring expense templates."""
+    print("Recurring templates")
+    if not templates:
+        print("No recurring templates saved.")
+        return
+
+    for template in sorted(templates, key=lambda item: item.day):
+        print(
+            f"{template.template_id} | "
+            f"day {template.day} | "
+            f"{template.category} | "
+            f"${template.amount} | "
+            f"{template.description}"
+        )
 
 
 def _print_monthly_report(
