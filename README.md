@@ -76,6 +76,12 @@ List expenses for a specific month:
 python -m src.expense_tracker.main list --month 2026-06
 ```
 
+Delete an expense by ID:
+
+```powershell
+python -m src.expense_tracker.main delete --id expense-id-from-list
+```
+
 View a specific month:
 
 ```powershell
@@ -109,4 +115,4 @@ The app supports both an interactive menu and direct command-line commands. That
 - The JSON data file is ignored by Git because personal spending data should not be committed.
 - Categories are centralized in `src/expense_tracker/utils/validators.py`.
 - Storage writes through a temporary file before replacing the JSON file, reducing the chance of corrupting saved data.
-- The next strong portfolio improvements would be edit/delete commands, date selection, CSV export, and richer reporting.
+- The next strong portfolio improvements would be edit commands, CSV export, and richer reporting.

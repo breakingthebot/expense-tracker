@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Any
+from uuid import uuid4
 
 DATE_FORMAT = "%Y-%m-%d"
 MONTH_FORMAT_LENGTH = 7
@@ -20,6 +21,7 @@ class Expense:
     category: str
     description: str
     expense_date: date
+    expense_id: str
 
     @property
     def month(self) -> str:
@@ -33,6 +35,7 @@ class Expense:
             "category": self.category,
             "description": self.description,
             "date": self.expense_date.isoformat(),
+            "id": self.expense_id,
             "month": self.month,
         }
 
@@ -44,4 +47,5 @@ class Expense:
             category=str(raw_expense["category"]),
             description=str(raw_expense["description"]),
             expense_date=date.fromisoformat(str(raw_expense["date"])),
+            expense_id=str(raw_expense.get("id") or uuid4()),
         )

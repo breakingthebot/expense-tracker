@@ -43,6 +43,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(len(expenses), 1)
         self.assertEqual(expenses[0].category, "Food")
         self.assertEqual(expenses[0].expense_date, date(2026, 6, 1))
+        self.assertTrue(expenses[0].expense_id)
 
     def test_list_command_prints_saved_expenses(self) -> None:
         """The list command displays saved expenses in date order."""
@@ -101,6 +102,46 @@ class CommandTests(unittest.TestCase):
         self.assertIn("Expenses for 2026-06", output.getvalue())
         self.assertIn("Lunch", output.getvalue())
         self.assertNotIn("Dinner", output.getvalue())
+
+    def test_delete_command_removes_saved_expense(self) -> None:
+        """The delete command removes one saved expense by ID."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            with patch("sys.stdout", new_callable=io.StringIO):
+                run_cli(
+                    data_file,
+                    [
+                        "add",
+                        "--amount",
+                        "10.50",
+                        "--category",
+                        "Food",
+                        "--description",
+                        "Lunch",
+                        "--date",
+                        "2026-06-01",
+                    ],
+                )
+            expense_id = load_expenses(data_file)[0].expense_id
+
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(data_file, ["delete", "--id", expense_id])
+
+            expenses = load_expenses(data_file)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(expenses, [])
+        self.assertIn(f"Deleted expense {expense_id}.", output.getvalue())
+
+    def test_delete_command_returns_error_for_missing_id(self) -> None:
+        """The delete command reports when the requested ID does not exist."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(data_file, ["delete", "--id", "missing-id"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Error: No expense found with that ID.", output.getvalue())
 
 
 if __name__ == "__main__":

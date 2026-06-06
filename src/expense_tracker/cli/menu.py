@@ -7,6 +7,7 @@ from datetime import date
 from decimal import Decimal
 import logging
 from pathlib import Path
+from uuid import uuid4
 
 from src.expense_tracker.models.expense import Expense
 from src.expense_tracker.services.storage import (
@@ -68,6 +69,7 @@ def _handle_add_expense(expenses: list[Expense], data_file: Path) -> None:
         category=category,
         description=description,
         expense_date=date.today(),
+        expense_id=str(uuid4()),
     )
     expenses.append(expense)
 

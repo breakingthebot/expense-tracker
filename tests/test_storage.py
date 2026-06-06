@@ -18,7 +18,13 @@ class StorageTests(unittest.TestCase):
 
     def test_save_and_load_expenses_round_trip(self) -> None:
         """Saved expenses can be loaded back as Expense objects."""
-        expense = Expense(Decimal("15.25"), "Food", "Lunch", date(2026, 6, 6))
+        expense = Expense(
+            Decimal("15.25"),
+            "Food",
+            "Lunch",
+            date(2026, 6, 6),
+            "expense-1",
+        )
 
         with TemporaryDirectory() as temporary_directory:
             data_file = Path(temporary_directory) / "expenses.json"
