@@ -49,6 +49,12 @@ See `.env.example`.
 Open the guided menu:
 
 ```powershell
+python -m src.expense_tracker.main
+```
+
+The guided menu asks questions for adding, listing, editing, deleting, reporting, and exporting expenses. You can also open it explicitly:
+
+```powershell
 python -m src.expense_tracker.main interactive
 ```
 
@@ -132,7 +138,7 @@ Not deployed. This is a local CLI portfolio project.
 
 I built this as a clean, maintainable version of the original single-file expense tracker. The launcher starts the app, the command layer handles terminal commands, the interactive menu handles guided prompts, validators clean user input, the model defines one expense, storage reads and writes JSON, and the summary service calculates monthly totals. That separation makes each piece easier to understand, test, and improve without turning the app into one large script.
 
-The app supports both an interactive menu and direct command-line commands. That matters for a portfolio piece because it shows the program can support guided user workflows and predictable automation. Expenses are saved as JSON so the data format stays easy to inspect, and the code uses `Decimal` for money instead of floats to avoid rounding surprises.
+The app supports both a questionnaire-style menu and direct command-line commands. That matters for a portfolio piece because it shows the program can support guided user workflows and predictable automation. Expenses are saved as JSON so the data format stays easy to inspect, and the code uses `Decimal` for money instead of floats to avoid rounding surprises.
 
 ## Notes
 

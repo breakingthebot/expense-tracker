@@ -1,33 +1,44 @@
 # src/expense_tracker/cli/menu.py
-# Handles all terminal prompts and display output for the expense tracker.
-# Connects to: src/expense_tracker/services/storage.py, src/expense_tracker/services/summary.py
+# Coordinates the questionnaire-style menu for the expense tracker.
+# Connects to: src/expense_tracker/cli/prompts.py, src/expense_tracker/cli/display.py
 # Created: 2026-06-06
 
-from datetime import date
-from decimal import Decimal
 import logging
 from pathlib import Path
 from uuid import uuid4
 
+from src.expense_tracker.cli.display import print_expenses, print_report, print_summary
+from src.expense_tracker.cli.prompts import (
+    prompt_for_amount,
+    prompt_for_category,
+    prompt_for_description,
+    prompt_for_expense_date,
+    prompt_for_expense_updates,
+    prompt_for_month,
+    prompt_for_optional_month,
+    prompt_for_output_path,
+)
 from src.expense_tracker.models.expense import Expense
+from src.expense_tracker.services.exporter import (
+    ExpenseExportError,
+    export_expenses_to_csv,
+)
 from src.expense_tracker.services.storage import (
     ExpenseStorageError,
     load_expenses,
     save_expenses,
 )
-from src.expense_tracker.services.summary import MonthlySummary, build_monthly_summary
-from src.expense_tracker.utils.validators import (
-    VALID_CATEGORIES,
-    parse_amount,
-    validate_category,
-    validate_description,
-    validate_month,
-)
+from src.expense_tracker.services.summary import build_monthly_summary
 
 LOGGER = logging.getLogger(__name__)
 MENU_ADD_EXPENSE = "1"
-MENU_VIEW_SUMMARY = "2"
-MENU_EXIT = "3"
+MENU_LIST_EXPENSES = "2"
+MENU_EDIT_EXPENSE = "3"
+MENU_DELETE_EXPENSE = "4"
+MENU_VIEW_SUMMARY = "5"
+MENU_VIEW_REPORT = "6"
+MENU_EXPORT_CSV = "7"
+MENU_EXIT = "8"
 
 
 def run_menu(data_file: Path) -> None:
@@ -39,36 +50,51 @@ def run_menu(data_file: Path) -> None:
         return
 
     print("Expense Tracker CLI")
-    print("Track expenses by category and review monthly totals.")
+    print("Answer the prompts to manage expenses without memorizing commands.")
 
     while True:
-        print("\n1. Add expense")
-        print("2. View monthly summary")
-        print("3. Exit")
-
+        _print_menu_options()
         choice = input("Select an option: ").strip()
         if choice == MENU_ADD_EXPENSE:
             _handle_add_expense(expenses, data_file)
+        elif choice == MENU_LIST_EXPENSES:
+            _handle_list_expenses(expenses)
+        elif choice == MENU_EDIT_EXPENSE:
+            _handle_edit_expense(expenses, data_file)
+        elif choice == MENU_DELETE_EXPENSE:
+            _handle_delete_expense(expenses, data_file)
         elif choice == MENU_VIEW_SUMMARY:
             _handle_monthly_summary(expenses)
+        elif choice == MENU_VIEW_REPORT:
+            _handle_monthly_report(expenses)
+        elif choice == MENU_EXPORT_CSV:
+            _handle_csv_export(expenses)
         elif choice == MENU_EXIT:
             print("Goodbye.")
             return
         else:
-            print("Please choose 1, 2, or 3.")
+            print("Please choose a number from 1 to 8.")
+
+
+def _print_menu_options() -> None:
+    """Print the available questionnaire menu actions."""
+    print("\n1. Add expense")
+    print("2. List expenses")
+    print("3. Edit expense")
+    print("4. Delete expense")
+    print("5. View monthly summary")
+    print("6. View monthly report")
+    print("7. Export CSV")
+    print("8. Exit")
 
 
 def _handle_add_expense(expenses: list[Expense], data_file: Path) -> None:
     """Prompt for a new expense, validate it, and save it."""
-    amount = _prompt_for_amount()
-    category = _prompt_for_category()
-    description = _prompt_for_description()
-
     expense = Expense(
-        amount=amount,
-        category=category,
-        description=description,
-        expense_date=date.today(),
+        amount=prompt_for_amount(),
+        category=prompt_for_category(),
+        description=prompt_for_description(),
+        expense_date=prompt_for_expense_date(),
         expense_id=str(uuid4()),
     )
     expenses.append(expense)
@@ -87,69 +113,108 @@ def _handle_add_expense(expenses: list[Expense], data_file: Path) -> None:
     print(f"Added ${expense.amount} for {expense.category}.")
 
 
+def _handle_list_expenses(expenses: list[Expense]) -> None:
+    """Prompt for an optional month and list matching expenses."""
+    month = prompt_for_optional_month("Month to list, or leave blank for all")
+    print_expenses(_filter_expenses_by_month(expenses, month), month)
+
+
+def _handle_edit_expense(expenses: list[Expense], data_file: Path) -> None:
+    """Prompt for expense updates and save the edited record."""
+    if not expenses:
+        print("No expenses available to edit.")
+        return
+
+    print_expenses(expenses, None)
+    expense_id = input("Expense ID to edit: ").strip()
+    existing_expense = _find_expense_by_id(expenses, expense_id)
+    if existing_expense is None:
+        print("Error: No expense found with that ID.")
+        return
+
+    print("Leave a field blank to keep its current value.")
+    edited_expense = prompt_for_expense_updates(existing_expense)
+    updated_expenses = [
+        edited_expense if expense.expense_id == expense_id else expense
+        for expense in expenses
+    ]
+
+    if _save_replacement_expenses(expenses, updated_expenses, data_file):
+        print(f"Updated expense {expense_id}.")
+
+
+def _handle_delete_expense(expenses: list[Expense], data_file: Path) -> None:
+    """Prompt for an expense ID and delete the matching record."""
+    if not expenses:
+        print("No expenses available to delete.")
+        return
+
+    print_expenses(expenses, None)
+    expense_id = input("Expense ID to delete: ").strip()
+    remaining_expenses = [
+        expense for expense in expenses if expense.expense_id != expense_id
+    ]
+    if len(remaining_expenses) == len(expenses):
+        print("Error: No expense found with that ID.")
+        return
+
+    if _save_replacement_expenses(expenses, remaining_expenses, data_file):
+        print(f"Deleted expense {expense_id}.")
+
+
 def _handle_monthly_summary(expenses: list[Expense]) -> None:
     """Prompt for a month and display its summary totals."""
-    default_month = date.today().strftime("%Y-%m")
-    raw_month = input(f"Month to summarize [{default_month}]: ").strip()
+    month = prompt_for_month("Month to summarize")
+    print_summary(build_monthly_summary(expenses, month))
+
+
+def _handle_monthly_report(expenses: list[Expense]) -> None:
+    """Prompt for a month and display richer spending insights."""
+    month = prompt_for_month("Month to report")
+    print_report(build_monthly_summary(expenses, month))
+
+
+def _handle_csv_export(expenses: list[Expense]) -> None:
+    """Prompt for export options and write matching expenses to CSV."""
+    month = prompt_for_optional_month("Month to export, or leave blank for all")
+    output_path = prompt_for_output_path()
+    filtered_expenses = _filter_expenses_by_month(expenses, month)
 
     try:
-        month = validate_month(raw_month or default_month)
-    except ValueError as exc:
+        export_expenses_to_csv(filtered_expenses, output_path)
+    except ExpenseExportError as exc:
         print(f"Error: {exc}")
         return
 
-    summary = build_monthly_summary(expenses, month)
-    _print_summary(summary)
+    print(f"Exported {len(filtered_expenses)} expense record(s) to {output_path}.")
 
 
-def _prompt_for_amount() -> Decimal:
-    """Prompt until the user enters a valid expense amount."""
-    while True:
-        try:
-            return parse_amount(input("Amount: $"))
-        except ValueError as exc:
-            print(f"Error: {exc}")
+def _save_replacement_expenses(
+    current_expenses: list[Expense],
+    replacement_expenses: list[Expense],
+    data_file: Path,
+) -> bool:
+    """Save replacement expenses and update the in-memory menu list."""
+    try:
+        save_expenses(replacement_expenses, data_file)
+    except ExpenseStorageError as exc:
+        print(f"Error: {exc}")
+        return False
+
+    current_expenses[:] = replacement_expenses
+    return True
 
 
-def _prompt_for_category() -> str:
-    """Prompt until the user selects a valid expense category."""
-    print("\nCategories")
-    for index, category in enumerate(VALID_CATEGORIES, start=1):
-        print(f"{index}. {category}")
-
-    while True:
-        raw_choice = input("Select category number: ").strip()
-        if not raw_choice.isdigit():
-            print("Error: Enter the number beside the category.")
-            continue
-
-        choice = int(raw_choice)
-        if choice < 1 or choice > len(VALID_CATEGORIES):
-            print(f"Error: Choose a number from 1 to {len(VALID_CATEGORIES)}.")
-            continue
-
-        try:
-            return validate_category(VALID_CATEGORIES[choice - 1])
-        except ValueError as exc:
-            print(f"Error: {exc}")
+def _find_expense_by_id(expenses: list[Expense], expense_id: str) -> Expense | None:
+    """Return the expense matching an ID, if present."""
+    for expense in expenses:
+        if expense.expense_id == expense_id:
+            return expense
+    return None
 
 
-def _prompt_for_description() -> str:
-    """Prompt until the user enters a valid expense description."""
-    while True:
-        try:
-            return validate_description(input("Description: "))
-        except ValueError as exc:
-            print(f"Error: {exc}")
-
-
-def _print_summary(summary: MonthlySummary) -> None:
-    """Print a monthly spending summary to the terminal."""
-    print(f"\nSummary for {summary.month}")
-    if not summary.category_totals:
-        print("No expenses recorded for this month.")
-        return
-
-    for category, amount in summary.category_totals.items():
-        print(f"{category}: ${amount}")
-    print(f"Total: ${summary.total}")
+def _filter_expenses_by_month(expenses: list[Expense], month: str | None) -> list[Expense]:
+    """Return expenses for the selected month, or all expenses when omitted."""
+    if month is None:
+        return expenses
+    return [expense for expense in expenses if expense.month == month]
