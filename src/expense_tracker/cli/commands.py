@@ -58,6 +58,16 @@ def build_parser() -> ArgumentParser:
         help="Month to summarize in YYYY-MM format.",
     )
 
+    report_parser = subparsers.add_parser(
+        "report",
+        help="Show monthly spending insights.",
+    )
+    report_parser.add_argument(
+        "--month",
+        default=date.today().strftime("%Y-%m"),
+        help="Month to report in YYYY-MM format.",
+    )
+
     list_parser = subparsers.add_parser("list", help="List saved expenses.")
     list_parser.add_argument(
         "--month",
@@ -116,6 +126,8 @@ def run_cli(data_file: Path, arguments: list[str] | None = None) -> int:
         return _run_export_command(parsed_arguments, data_file)
     if parsed_arguments.command == "list":
         return _run_list_command(parsed_arguments, data_file)
+    if parsed_arguments.command == "report":
+        return _run_report_command(parsed_arguments, data_file)
     if parsed_arguments.command == "summary":
         return _run_summary_command(parsed_arguments, data_file)
 
@@ -210,6 +222,19 @@ def _run_list_command(arguments: Namespace, data_file: Path) -> int:
 
     filtered_expenses = _filter_expenses_by_month(expenses, month)
     _print_expenses(filtered_expenses, month)
+    return 0
+
+
+def _run_report_command(arguments: Namespace, data_file: Path) -> int:
+    """Print monthly spending insights from saved expenses."""
+    try:
+        month = validate_month(arguments.month)
+        expenses = load_expenses(data_file)
+    except (ExpenseStorageError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    _print_monthly_report(build_monthly_summary(expenses, month))
     return 0
 
 
@@ -320,3 +345,19 @@ def _print_command_summary(summary: MonthlySummary) -> None:
     for category, amount in summary.category_totals.items():
         print(f"{category}: ${amount}")
     print(f"Total: ${summary.total}")
+
+
+def _print_monthly_report(summary: MonthlySummary) -> None:
+    """Print monthly spending insights for portfolio-friendly reporting."""
+    print(f"Report for {summary.month}")
+    if summary.transaction_count == 0:
+        print("No expenses recorded for this month.")
+        return
+
+    print(f"Total spent: ${summary.total}")
+    print(f"Transactions: {summary.transaction_count}")
+    print(f"Average expense: ${summary.average_expense}")
+    print(f"Top category: {summary.top_category}")
+    print("Category breakdown:")
+    for category, amount in summary.category_totals.items():
+        print(f"- {category}: ${amount}")

@@ -106,6 +106,12 @@ View a specific month:
 python -m src.expense_tracker.main summary --month 2026-06
 ```
 
+View monthly spending insights:
+
+```powershell
+python -m src.expense_tracker.main report --month 2026-06
+```
+
 The root launcher also starts the app:
 
 ```powershell
@@ -133,4 +139,4 @@ The app supports both an interactive menu and direct command-line commands. That
 - The JSON data file is ignored by Git because personal spending data should not be committed.
 - Categories are centralized in `src/expense_tracker/utils/validators.py`.
 - Storage writes through a temporary file before replacing the JSON file, reducing the chance of corrupting saved data.
-- The next strong portfolio improvement would be richer reporting.
+- The next strong portfolio improvement would be budget tracking.

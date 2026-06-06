@@ -46,6 +46,9 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(summary.total, Decimal("59.75"))
         self.assertEqual(summary.category_totals["Food"], Decimal("19.75"))
         self.assertEqual(summary.category_totals["Utilities"], Decimal("40.00"))
+        self.assertEqual(summary.transaction_count, 3)
+        self.assertEqual(summary.average_expense, Decimal("19.92"))
+        self.assertEqual(summary.top_category, "Utilities")
 
     def test_build_monthly_summary_handles_empty_month(self) -> None:
         """A month with no expenses returns empty totals."""
@@ -53,6 +56,9 @@ class SummaryTests(unittest.TestCase):
 
         self.assertEqual(summary.total, Decimal("0.00"))
         self.assertEqual(summary.category_totals, {})
+        self.assertEqual(summary.transaction_count, 0)
+        self.assertEqual(summary.average_expense, Decimal("0.00"))
+        self.assertIsNone(summary.top_category)
 
 
 if __name__ == "__main__":

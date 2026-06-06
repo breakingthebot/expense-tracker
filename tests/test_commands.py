@@ -290,6 +290,40 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["description"], "Lunch")
 
+    def test_report_command_prints_monthly_insights(self) -> None:
+        """The report command prints richer monthly spending metrics."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            for amount, category, description in (
+                ("10.50", "Food", "Lunch"),
+                ("20.00", "Utilities", "Internet"),
+            ):
+                with patch("sys.stdout", new_callable=io.StringIO):
+                    run_cli(
+                        data_file,
+                        [
+                            "add",
+                            "--amount",
+                            amount,
+                            "--category",
+                            category,
+                            "--description",
+                            description,
+                            "--date",
+                            "2026-06-01",
+                        ],
+                    )
+
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(data_file, ["report", "--month", "2026-06"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Report for 2026-06", output.getvalue())
+        self.assertIn("Total spent: $30.50", output.getvalue())
+        self.assertIn("Transactions: 2", output.getvalue())
+        self.assertIn("Average expense: $15.25", output.getvalue())
+        self.assertIn("Top category: Utilities", output.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
