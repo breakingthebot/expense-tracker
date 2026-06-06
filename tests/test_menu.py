@@ -28,7 +28,7 @@ class MenuTests(unittest.TestCase):
                 "1",
                 "Lunch",
                 "2026-06-01",
-                "8",
+                "10",
             ]
         )
 
@@ -47,7 +47,7 @@ class MenuTests(unittest.TestCase):
 
     def test_menu_report_prints_prompted_month(self) -> None:
         """The guided report flow prints metrics for the selected month."""
-        user_inputs = iter(["6", "2026-06", "8"])
+        user_inputs = iter(["6", "2026-06", "10"])
         expense = Expense(
             Decimal("20.00"),
             "Utilities",

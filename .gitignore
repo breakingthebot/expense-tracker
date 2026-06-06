@@ -8,4 +8,5 @@ node_modules/
 dist/
 build/
 data/expenses.json
+data/budgets.json
 AGENTS.md

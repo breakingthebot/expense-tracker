@@ -19,6 +19,14 @@ from src.expense_tracker.cli.prompts import (
     prompt_for_output_path,
 )
 from src.expense_tracker.models.expense import Expense
+from src.expense_tracker.services.budgets import (
+    BudgetStorageError,
+    get_budget_file_path,
+    get_monthly_budgets,
+    load_budgets,
+    save_budgets,
+    set_monthly_budget,
+)
 from src.expense_tracker.services.exporter import (
     ExpenseExportError,
     export_expenses_to_csv,
@@ -38,7 +46,9 @@ MENU_DELETE_EXPENSE = "4"
 MENU_VIEW_SUMMARY = "5"
 MENU_VIEW_REPORT = "6"
 MENU_EXPORT_CSV = "7"
-MENU_EXIT = "8"
+MENU_SET_BUDGET = "8"
+MENU_LIST_BUDGETS = "9"
+MENU_EXIT = "10"
 
 
 def run_menu(data_file: Path) -> None:
@@ -66,14 +76,18 @@ def run_menu(data_file: Path) -> None:
         elif choice == MENU_VIEW_SUMMARY:
             _handle_monthly_summary(expenses)
         elif choice == MENU_VIEW_REPORT:
-            _handle_monthly_report(expenses)
+            _handle_monthly_report(expenses, data_file)
         elif choice == MENU_EXPORT_CSV:
             _handle_csv_export(expenses)
+        elif choice == MENU_SET_BUDGET:
+            _handle_set_budget(data_file)
+        elif choice == MENU_LIST_BUDGETS:
+            _handle_list_budgets(data_file)
         elif choice == MENU_EXIT:
             print("Goodbye.")
             return
         else:
-            print("Please choose a number from 1 to 8.")
+            print("Please choose a number from 1 to 10.")
 
 
 def _print_menu_options() -> None:
@@ -85,7 +99,9 @@ def _print_menu_options() -> None:
     print("5. View monthly summary")
     print("6. View monthly report")
     print("7. Export CSV")
-    print("8. Exit")
+    print("8. Set budget")
+    print("9. List budgets")
+    print("10. Exit")
 
 
 def _handle_add_expense(expenses: list[Expense], data_file: Path) -> None:
@@ -168,10 +184,18 @@ def _handle_monthly_summary(expenses: list[Expense]) -> None:
     print_summary(build_monthly_summary(expenses, month))
 
 
-def _handle_monthly_report(expenses: list[Expense]) -> None:
+def _handle_monthly_report(expenses: list[Expense], data_file: Path) -> None:
     """Prompt for a month and display richer spending insights."""
     month = prompt_for_month("Month to report")
-    print_report(build_monthly_summary(expenses, month))
+    try:
+        budgets = get_monthly_budgets(
+            load_budgets(get_budget_file_path(data_file)),
+            month,
+        )
+    except BudgetStorageError:
+        budgets = {}
+
+    print_report(build_monthly_summary(expenses, month), budgets)
 
 
 def _handle_csv_export(expenses: list[Expense]) -> None:
@@ -187,6 +211,43 @@ def _handle_csv_export(expenses: list[Expense]) -> None:
         return
 
     print(f"Exported {len(filtered_expenses)} expense record(s) to {output_path}.")
+
+
+def _handle_set_budget(data_file: Path) -> None:
+    """Prompt for a monthly category budget and save it."""
+    budget_file = get_budget_file_path(data_file)
+    month = prompt_for_month("Budget month")
+    category = prompt_for_category()
+    amount = prompt_for_amount()
+
+    try:
+        budgets = load_budgets(budget_file)
+        updated_budgets = set_monthly_budget(budgets, month, category, amount)
+        save_budgets(updated_budgets, budget_file)
+    except BudgetStorageError as exc:
+        print(f"Error: {exc}")
+        return
+
+    print(f"Set {category} budget for {month} to ${amount}.")
+
+
+def _handle_list_budgets(data_file: Path) -> None:
+    """Prompt for a month and list matching budgets."""
+    budget_file = get_budget_file_path(data_file)
+    month = prompt_for_month("Budget month")
+
+    try:
+        budgets = get_monthly_budgets(load_budgets(budget_file), month)
+    except BudgetStorageError as exc:
+        print(f"Error: {exc}")
+        return
+
+    print(f"\nBudgets for {month}")
+    if not budgets:
+        print("No budgets set for this month.")
+        return
+    for category, amount in sorted(budgets.items()):
+        print(f"{category}: ${amount}")
 
 
 def _save_replacement_expenses(

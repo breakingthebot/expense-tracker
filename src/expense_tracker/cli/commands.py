@@ -5,12 +5,21 @@
 
 from argparse import ArgumentParser, Namespace
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 import logging
 from uuid import uuid4
 
 from src.expense_tracker.cli.menu import run_menu
 from src.expense_tracker.models.expense import Expense
+from src.expense_tracker.services.budgets import (
+    BudgetStorageError,
+    get_budget_file_path,
+    get_monthly_budgets,
+    load_budgets,
+    save_budgets,
+    set_monthly_budget,
+)
 from src.expense_tracker.services.exporter import (
     ExpenseExportError,
     export_expenses_to_csv,
@@ -25,6 +34,7 @@ from src.expense_tracker.utils.validators import (
     VALID_CATEGORIES,
     parse_amount,
     parse_expense_date,
+    validate_category,
     validate_description,
     validate_month,
 )
@@ -66,6 +76,36 @@ def build_parser() -> ArgumentParser:
         "--month",
         default=date.today().strftime("%Y-%m"),
         help="Month to report in YYYY-MM format.",
+    )
+
+    budget_parser = subparsers.add_parser("budget", help="Manage monthly budgets.")
+    budget_subparsers = budget_parser.add_subparsers(dest="budget_action")
+
+    budget_set_parser = budget_subparsers.add_parser(
+        "set",
+        help="Set a category budget.",
+    )
+    budget_set_parser.add_argument(
+        "--month",
+        required=True,
+        help="Budget month in YYYY-MM format.",
+    )
+    budget_set_parser.add_argument(
+        "--category",
+        required=True,
+        choices=VALID_CATEGORIES,
+    )
+    budget_set_parser.add_argument(
+        "--amount",
+        required=True,
+        help="Budget amount.",
+    )
+
+    budget_list_parser = budget_subparsers.add_parser("list", help="List budgets.")
+    budget_list_parser.add_argument(
+        "--month",
+        default=date.today().strftime("%Y-%m"),
+        help="Budget month in YYYY-MM format.",
     )
 
     list_parser = subparsers.add_parser("list", help="List saved expenses.")
@@ -118,6 +158,8 @@ def run_cli(data_file: Path, arguments: list[str] | None = None) -> int:
 
     if parsed_arguments.command == "add":
         return _run_add_command(parsed_arguments, data_file)
+    if parsed_arguments.command == "budget":
+        return _run_budget_command(parsed_arguments, data_file)
     if parsed_arguments.command == "delete":
         return _run_delete_command(parsed_arguments, data_file)
     if parsed_arguments.command == "edit":
@@ -154,6 +196,49 @@ def _run_add_command(arguments: Namespace, data_file: Path) -> int:
 
     LOGGER.info("Expense added from command.", extra={"category": expense.category})
     print(f"Added ${expense.amount} for {expense.category}.")
+    return 0
+
+
+def _run_budget_command(arguments: Namespace, data_file: Path) -> int:
+    """Run a budget subcommand."""
+    if arguments.budget_action == "set":
+        return _run_budget_set_command(arguments, data_file)
+    if arguments.budget_action == "list":
+        return _run_budget_list_command(arguments, data_file)
+
+    print("Error: Choose a budget action: set or list.")
+    return 1
+
+
+def _run_budget_set_command(arguments: Namespace, data_file: Path) -> int:
+    """Set a monthly category budget."""
+    budget_file = get_budget_file_path(data_file)
+    try:
+        month = validate_month(arguments.month)
+        category = validate_category(arguments.category)
+        amount = parse_amount(arguments.amount)
+        budgets = load_budgets(budget_file)
+        updated_budgets = set_monthly_budget(budgets, month, category, amount)
+        save_budgets(updated_budgets, budget_file)
+    except (BudgetStorageError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    print(f"Set {category} budget for {month} to ${amount}.")
+    return 0
+
+
+def _run_budget_list_command(arguments: Namespace, data_file: Path) -> int:
+    """List monthly category budgets."""
+    budget_file = get_budget_file_path(data_file)
+    try:
+        month = validate_month(arguments.month)
+        budgets = get_monthly_budgets(load_budgets(budget_file), month)
+    except (BudgetStorageError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    _print_budgets(month, budgets)
     return 0
 
 
@@ -227,14 +312,16 @@ def _run_list_command(arguments: Namespace, data_file: Path) -> int:
 
 def _run_report_command(arguments: Namespace, data_file: Path) -> int:
     """Print monthly spending insights from saved expenses."""
+    budget_file = get_budget_file_path(data_file)
     try:
         month = validate_month(arguments.month)
         expenses = load_expenses(data_file)
-    except (ExpenseStorageError, ValueError) as exc:
+        budgets = get_monthly_budgets(load_budgets(budget_file), month)
+    except (ExpenseStorageError, BudgetStorageError, ValueError) as exc:
         print(f"Error: {exc}")
         return 1
 
-    _print_monthly_report(build_monthly_summary(expenses, month))
+    _print_monthly_report(build_monthly_summary(expenses, month), budgets)
     return 0
 
 
@@ -347,12 +434,25 @@ def _print_command_summary(summary: MonthlySummary) -> None:
     print(f"Total: ${summary.total}")
 
 
-def _print_monthly_report(summary: MonthlySummary) -> None:
+def _print_budgets(month: str, budgets: dict[str, Decimal]) -> None:
+    """Print monthly category budgets."""
+    print(f"Budgets for {month}")
+    if not budgets:
+        print("No budgets set for this month.")
+        return
+
+    for category, amount in sorted(budgets.items()):
+        print(f"{category}: ${amount}")
+
+
+def _print_monthly_report(
+    summary: MonthlySummary,
+    budgets: dict[str, Decimal] | None = None,
+) -> None:
     """Print monthly spending insights for portfolio-friendly reporting."""
     print(f"Report for {summary.month}")
     if summary.transaction_count == 0:
         print("No expenses recorded for this month.")
-        return
 
     print(f"Total spent: ${summary.total}")
     print(f"Transactions: {summary.transaction_count}")
@@ -361,3 +461,19 @@ def _print_monthly_report(summary: MonthlySummary) -> None:
     print("Category breakdown:")
     for category, amount in summary.category_totals.items():
         print(f"- {category}: ${amount}")
+
+    if budgets:
+        print("Budget comparison:")
+        compared_categories = sorted(set(budgets) | set(summary.category_totals))
+        for category in compared_categories:
+            budget_amount = budgets.get(category)
+            spent_amount = summary.category_totals.get(category, Decimal("0.00"))
+            if budget_amount is None:
+                print(f"- {category}: no budget set, spent ${spent_amount}")
+                continue
+            remaining_amount = budget_amount - spent_amount
+            print(
+                f"- {category}: budget ${budget_amount}, "
+                f"spent ${spent_amount}, "
+                f"remaining ${remaining_amount}"
+            )

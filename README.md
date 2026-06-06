@@ -118,6 +118,18 @@ View monthly spending insights:
 python -m src.expense_tracker.main report --month 2026-06
 ```
 
+Set a monthly category budget:
+
+```powershell
+python -m src.expense_tracker.main budget set --month 2026-06 --category Food --amount 300.00
+```
+
+List monthly budgets:
+
+```powershell
+python -m src.expense_tracker.main budget list --month 2026-06
+```
+
 The root launcher also starts the app:
 
 ```powershell
@@ -143,6 +155,7 @@ The app supports both a questionnaire-style menu and direct command-line command
 ## Notes
 
 - The JSON data file is ignored by Git because personal spending data should not be committed.
+- The budget data file is ignored by Git because personal financial targets should not be committed.
 - Categories are centralized in `src/expense_tracker/utils/validators.py`.
 - Storage writes through a temporary file before replacing the JSON file, reducing the chance of corrupting saved data.
-- The next strong portfolio improvement would be budget tracking.
+- The next strong portfolio improvement would be recurring expense templates.

@@ -144,6 +144,37 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIn("Error: No expense found with that ID.", output.getvalue())
 
+    def test_budget_set_and_list_commands_manage_monthly_budget(self) -> None:
+        """Budget commands save and display monthly category budgets."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+
+            with patch("sys.stdout", new_callable=io.StringIO) as set_output:
+                set_exit_code = run_cli(
+                    data_file,
+                    [
+                        "budget",
+                        "set",
+                        "--month",
+                        "2026-06",
+                        "--category",
+                        "Food",
+                        "--amount",
+                        "300.00",
+                    ],
+                )
+
+            with patch("sys.stdout", new_callable=io.StringIO) as list_output:
+                list_exit_code = run_cli(
+                    data_file,
+                    ["budget", "list", "--month", "2026-06"],
+                )
+
+        self.assertEqual(set_exit_code, 0)
+        self.assertEqual(list_exit_code, 0)
+        self.assertIn("Set Food budget for 2026-06 to $300.00.", set_output.getvalue())
+        self.assertIn("Food: $300.00", list_output.getvalue())
+
     def test_edit_command_updates_saved_expense(self) -> None:
         """The edit command updates provided fields and preserves the expense ID."""
         with TemporaryDirectory() as temporary_directory:
@@ -323,6 +354,48 @@ class CommandTests(unittest.TestCase):
         self.assertIn("Transactions: 2", output.getvalue())
         self.assertIn("Average expense: $15.25", output.getvalue())
         self.assertIn("Top category: Utilities", output.getvalue())
+
+    def test_report_command_prints_budget_comparison(self) -> None:
+        """The report command compares monthly spending against budgets."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            with patch("sys.stdout", new_callable=io.StringIO):
+                run_cli(
+                    data_file,
+                    [
+                        "add",
+                        "--amount",
+                        "75.00",
+                        "--category",
+                        "Food",
+                        "--description",
+                        "Groceries",
+                        "--date",
+                        "2026-06-01",
+                    ],
+                )
+                run_cli(
+                    data_file,
+                    [
+                        "budget",
+                        "set",
+                        "--month",
+                        "2026-06",
+                        "--category",
+                        "Food",
+                        "--amount",
+                        "100.00",
+                    ],
+                )
+
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(data_file, ["report", "--month", "2026-06"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn(
+            "- Food: budget $100.00, spent $75.00, remaining $25.00",
+            output.getvalue(),
+        )
 
 
 if __name__ == "__main__":

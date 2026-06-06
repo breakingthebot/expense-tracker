@@ -3,6 +3,8 @@
 # Connects to: src/expense_tracker/cli/menu.py, src/expense_tracker/models/expense.py
 # Created: 2026-06-06
 
+from decimal import Decimal
+
 from src.expense_tracker.models.expense import Expense
 from src.expense_tracker.services.summary import MonthlySummary
 
@@ -38,12 +40,14 @@ def print_summary(summary: MonthlySummary) -> None:
     print(f"Total: ${summary.total}")
 
 
-def print_report(summary: MonthlySummary) -> None:
+def print_report(
+    summary: MonthlySummary,
+    budgets: dict[str, Decimal] | None = None,
+) -> None:
     """Print a monthly spending report to the terminal."""
     print(f"\nReport for {summary.month}")
     if summary.transaction_count == 0:
         print("No expenses recorded for this month.")
-        return
 
     print(f"Total spent: ${summary.total}")
     print(f"Transactions: {summary.transaction_count}")
@@ -52,3 +56,19 @@ def print_report(summary: MonthlySummary) -> None:
     print("Category breakdown:")
     for category, amount in summary.category_totals.items():
         print(f"- {category}: ${amount}")
+
+    if budgets:
+        print("Budget comparison:")
+        compared_categories = sorted(set(budgets) | set(summary.category_totals))
+        for category in compared_categories:
+            budget_amount = budgets.get(category)
+            spent_amount = summary.category_totals.get(category, Decimal("0.00"))
+            if budget_amount is None:
+                print(f"- {category}: no budget set, spent ${spent_amount}")
+                continue
+            remaining_amount = budget_amount - spent_amount
+            print(
+                f"- {category}: budget ${budget_amount}, "
+                f"spent ${spent_amount}, "
+                f"remaining ${remaining_amount}"
+            )
