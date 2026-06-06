@@ -215,6 +215,21 @@ Exported 2 expense record(s) to exports/june-2026.csv.
 
 Not deployed. This is a local CLI portfolio project.
 
+## Changelog
+
+- `e29dd74` - Added README screenshots section with terminal examples.
+- `1430e21` - Added duplicate protection when applying recurring templates.
+- `cee2c8f` - Added recurring expense templates for rent, subscriptions, and other repeat expenses.
+- `eae2c7c` - Added monthly budget tracking and budget comparison in reports.
+- `57c26d2` - Expanded the guided questionnaire menu for new users.
+- `a0dee22` - Added monthly spending report with average expense and top category.
+- `581b0f0` - Added expense editing by ID.
+- `2e7f40b` - Added CSV export for spreadsheet workflows.
+- `ab3607f` - Added expense deletion by ID.
+- `181f032` - Added expense listing with optional month filtering.
+- `587ffd2` - Added explicit expense date support.
+- `3cc8cc6` - Built the initial modular expense tracker CLI.
+
 ## Architecture Notes
 
 I built this as a clean, maintainable version of the original single-file expense tracker. The launcher starts the app, the command layer handles terminal commands, the interactive menu handles guided prompts, validators clean user input, the model defines one expense, storage reads and writes JSON, and the summary service calculates monthly totals. That separation makes each piece easier to understand, test, and improve without turning the app into one large script.
@@ -228,4 +243,4 @@ The app supports both a questionnaire-style menu and direct command-line command
 - The recurring template data file is ignored by Git because personal bill patterns should not be committed.
 - Categories are centralized in `src/expense_tracker/utils/validators.py`.
 - Storage writes through a temporary file before replacing the JSON file, reducing the chance of corrupting saved data.
-- The next strong portfolio improvement would be a lightweight changelog.
+- Future improvements could include import from CSV, richer report formatting, or a small text-based dashboard.
