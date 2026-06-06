@@ -156,6 +156,61 @@ Run tests:
 python -m unittest discover
 ```
 
+## Screenshots
+
+Guided menu:
+
+```text
+Expense Tracker CLI
+Answer the prompts to manage expenses without memorizing commands.
+
+1. Add expense
+2. List expenses
+3. Edit expense
+4. Delete expense
+5. View monthly summary
+6. View monthly report
+7. Export CSV
+8. Set budget
+9. List budgets
+10. Add recurring template
+11. List recurring templates
+12. Apply recurring templates
+13. Exit
+```
+
+Monthly report with budget comparison:
+
+```text
+Report for 2026-06
+Total spent: $1275.00
+Transactions: 2
+Average expense: $637.50
+Top category: Housing
+Category breakdown:
+- Food: $75.00
+- Housing: $1200.00
+Budget comparison:
+- Food: budget $300.00, spent $75.00, remaining $225.00
+- Housing: budget $1200.00, spent $1200.00, remaining $0.00
+```
+
+Recurring template workflow:
+
+```text
+Recurring templates
+template-id | day 1 | Housing | $1200.00 | Rent
+
+Applied 1 recurring template(s) to 2026-06.
+Applied 0 recurring template(s) to 2026-06.
+```
+
+CSV export:
+
+```text
+Exported 2 expense record(s) to exports/june-2026.csv.
+```
+
 ## Deployed
 
 Not deployed. This is a local CLI portfolio project.
@@ -173,4 +228,4 @@ The app supports both a questionnaire-style menu and direct command-line command
 - The recurring template data file is ignored by Git because personal bill patterns should not be committed.
 - Categories are centralized in `src/expense_tracker/utils/validators.py`.
 - Storage writes through a temporary file before replacing the JSON file, reducing the chance of corrupting saved data.
-- The next strong portfolio improvement would be a lightweight changelog or screenshots section for the portfolio README.
+- The next strong portfolio improvement would be a lightweight changelog.
