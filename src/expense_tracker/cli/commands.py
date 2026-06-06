@@ -344,7 +344,7 @@ def _run_recurring_apply_command(arguments: Namespace, data_file: Path) -> int:
         month = validate_month(arguments.month)
         templates = load_recurring_templates(template_file)
         expenses = load_expenses(data_file)
-        created_expenses = apply_templates_to_month(templates, month)
+        created_expenses = apply_templates_to_month(templates, month, expenses)
         save_expenses(expenses + created_expenses, data_file)
     except (RecurringTemplateStorageError, ExpenseStorageError, ValueError) as exc:
         print(f"Error: {exc}")

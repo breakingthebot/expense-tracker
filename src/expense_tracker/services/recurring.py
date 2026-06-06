@@ -95,20 +95,53 @@ def save_recurring_templates(
 def apply_templates_to_month(
     templates: list[RecurringTemplate],
     month: str,
+    existing_expenses: list[Expense] | None = None,
 ) -> list[Expense]:
-    """Create expense records from templates for a selected month."""
+    """Create non-duplicate expense records from templates for a selected month."""
     year_text, month_text = month.split("-")
     year = int(year_text)
     month_number = int(month_text)
     last_day = calendar.monthrange(year, month_number)[1]
+    existing_keys = {
+        _build_expense_match_key(expense)
+        for expense in existing_expenses or []
+        if expense.month == month
+    }
 
-    return [
-        Expense(
+    created_expenses: list[Expense] = []
+    for template in templates:
+        template_expense = Expense(
             amount=template.amount,
             category=template.category,
             description=template.description,
-            expense_date=date(year, month_number, min(template.day, last_day)),
+            expense_date=_build_template_date(template, year, month_number, last_day),
             expense_id=str(uuid4()),
         )
-        for template in templates
-    ]
+        expense_key = _build_expense_match_key(template_expense)
+        if expense_key in existing_keys:
+            continue
+
+        created_expenses.append(template_expense)
+        existing_keys.add(expense_key)
+
+    return created_expenses
+
+
+def _build_template_date(
+    template: RecurringTemplate,
+    year: int,
+    month_number: int,
+    last_day: int,
+) -> date:
+    """Return the applied expense date for a recurring template."""
+    return date(year, month_number, min(template.day, last_day))
+
+
+def _build_expense_match_key(expense: Expense) -> tuple[str, str, str, str]:
+    """Return the fields used to identify recurring duplicate expenses."""
+    return (
+        expense.expense_date.isoformat(),
+        expense.category,
+        str(expense.amount),
+        expense.description,
+    )

@@ -311,7 +311,7 @@ def _handle_apply_recurring_templates(
     month = prompt_for_month("Month to apply templates")
     try:
         templates = load_recurring_templates(get_recurring_file_path(data_file))
-        created_expenses = apply_templates_to_month(templates, month)
+        created_expenses = apply_templates_to_month(templates, month, expenses)
         save_expenses(expenses + created_expenses, data_file)
     except (RecurringTemplateStorageError, ExpenseStorageError) as exc:
         print(f"Error: {exc}")

@@ -142,6 +142,8 @@ Apply recurring templates to a month:
 python -m src.expense_tracker.main recurring apply --month 2026-06
 ```
 
+Recurring template application skips matching expenses that already exist for the selected month.
+
 The root launcher also starts the app:
 
 ```powershell
@@ -171,4 +173,4 @@ The app supports both a questionnaire-style menu and direct command-line command
 - The recurring template data file is ignored by Git because personal bill patterns should not be committed.
 - Categories are centralized in `src/expense_tracker/utils/validators.py`.
 - Storage writes through a temporary file before replacing the JSON file, reducing the chance of corrupting saved data.
-- The next strong portfolio improvement would be duplicate protection when applying recurring templates.
+- The next strong portfolio improvement would be a lightweight changelog or screenshots section for the portfolio README.

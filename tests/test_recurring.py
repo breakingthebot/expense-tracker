@@ -53,6 +53,25 @@ class RecurringTemplateTests(unittest.TestCase):
         self.assertEqual(expenses[0].expense_date.isoformat(), "2026-02-28")
         self.assertEqual(expenses[0].amount, Decimal("15.00"))
 
+    def test_apply_templates_to_month_skips_existing_duplicate(self) -> None:
+        """Recurring application does not create a duplicate expense."""
+        template = RecurringTemplate(
+            Decimal("1200.00"),
+            "Housing",
+            "Rent",
+            1,
+            "template-1",
+        )
+        existing_expenses = apply_templates_to_month([template], "2026-06")
+
+        created_expenses = apply_templates_to_month(
+            [template],
+            "2026-06",
+            existing_expenses,
+        )
+
+        self.assertEqual(created_expenses, [])
+
 
 if __name__ == "__main__":
     unittest.main()

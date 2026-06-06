@@ -439,6 +439,41 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(len(expenses), 1)
         self.assertEqual(expenses[0].description, "Rent")
 
+    def test_recurring_apply_command_skips_existing_duplicate(self) -> None:
+        """Applying recurring templates twice does not duplicate expenses."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+
+            with patch("sys.stdout", new_callable=io.StringIO):
+                run_cli(
+                    data_file,
+                    [
+                        "recurring",
+                        "add",
+                        "--amount",
+                        "1200.00",
+                        "--category",
+                        "Housing",
+                        "--description",
+                        "Rent",
+                        "--day",
+                        "1",
+                    ],
+                )
+                run_cli(data_file, ["recurring", "apply", "--month", "2026-06"])
+
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(
+                    data_file,
+                    ["recurring", "apply", "--month", "2026-06"],
+                )
+
+            expenses = load_expenses(data_file)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(expenses), 1)
+        self.assertIn("Applied 0 recurring template(s) to 2026-06.", output.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
