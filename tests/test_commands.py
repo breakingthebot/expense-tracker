@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from datetime import date
+import csv
 import io
 import unittest
 
@@ -142,6 +143,80 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 1)
         self.assertIn("Error: No expense found with that ID.", output.getvalue())
+
+    def test_export_command_writes_csv_file(self) -> None:
+        """The export command writes saved expenses to CSV."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            output_file = Path(temporary_directory) / "exports" / "expenses.csv"
+            with patch("sys.stdout", new_callable=io.StringIO):
+                run_cli(
+                    data_file,
+                    [
+                        "add",
+                        "--amount",
+                        "10.50",
+                        "--category",
+                        "Food",
+                        "--description",
+                        "Lunch",
+                        "--date",
+                        "2026-06-01",
+                    ],
+                )
+
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                exit_code = run_cli(
+                    data_file,
+                    ["export", "--output", str(output_file)],
+                )
+
+            with output_file.open("r", encoding="utf-8", newline="") as file:
+                rows = list(csv.DictReader(file))
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["date"], "2026-06-01")
+        self.assertEqual(rows[0]["amount"], "10.50")
+        self.assertIn("Exported 1 expense record(s)", output.getvalue())
+
+    def test_export_command_filters_by_month(self) -> None:
+        """The export command can write only one month of expenses."""
+        with TemporaryDirectory() as temporary_directory:
+            data_file = Path(temporary_directory) / "expenses.json"
+            output_file = Path(temporary_directory) / "expenses.csv"
+            for raw_date, description in (
+                ("2026-06-01", "Lunch"),
+                ("2026-07-01", "Dinner"),
+            ):
+                with patch("sys.stdout", new_callable=io.StringIO):
+                    run_cli(
+                        data_file,
+                        [
+                            "add",
+                            "--amount",
+                            "10.50",
+                            "--category",
+                            "Food",
+                            "--description",
+                            description,
+                            "--date",
+                            raw_date,
+                        ],
+                    )
+
+            with patch("sys.stdout", new_callable=io.StringIO):
+                exit_code = run_cli(
+                    data_file,
+                    ["export", "--output", str(output_file), "--month", "2026-06"],
+                )
+
+            with output_file.open("r", encoding="utf-8", newline="") as file:
+                rows = list(csv.DictReader(file))
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["description"], "Lunch")
 
 
 if __name__ == "__main__":

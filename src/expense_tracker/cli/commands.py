@@ -1,6 +1,6 @@
 # src/expense_tracker/cli/commands.py
-# Provides non-interactive command parsing for adding, listing, and summarizing expenses.
-# Connects to: src/expense_tracker/services/storage.py, src/expense_tracker/services/summary.py
+# Provides non-interactive command parsing for expense tracker actions.
+# Connects to: src/expense_tracker/services/storage.py, src/expense_tracker/services/exporter.py
 # Created: 2026-06-06
 
 from argparse import ArgumentParser, Namespace
@@ -11,6 +11,10 @@ from uuid import uuid4
 
 from src.expense_tracker.cli.menu import run_menu
 from src.expense_tracker.models.expense import Expense
+from src.expense_tracker.services.exporter import (
+    ExpenseExportError,
+    export_expenses_to_csv,
+)
 from src.expense_tracker.services.storage import (
     ExpenseStorageError,
     load_expenses,
@@ -67,6 +71,17 @@ def build_parser() -> ArgumentParser:
         help="Expense ID from the list command.",
     )
 
+    export_parser = subparsers.add_parser("export", help="Export expenses to CSV.")
+    export_parser.add_argument(
+        "--output",
+        required=True,
+        help="CSV file path to create.",
+    )
+    export_parser.add_argument(
+        "--month",
+        help="Optional month filter in YYYY-MM format.",
+    )
+
     subparsers.add_parser("interactive", help="Open the guided interactive menu.")
     return parser
 
@@ -80,6 +95,8 @@ def run_cli(data_file: Path, arguments: list[str] | None = None) -> int:
         return _run_add_command(parsed_arguments, data_file)
     if parsed_arguments.command == "delete":
         return _run_delete_command(parsed_arguments, data_file)
+    if parsed_arguments.command == "export":
+        return _run_export_command(parsed_arguments, data_file)
     if parsed_arguments.command == "list":
         return _run_list_command(parsed_arguments, data_file)
     if parsed_arguments.command == "summary":
@@ -128,6 +145,21 @@ def _run_delete_command(arguments: Namespace, data_file: Path) -> int:
 
     LOGGER.info("Expense deleted from command.", extra={"expense_id": arguments.id})
     print(f"Deleted expense {arguments.id}.")
+    return 0
+
+
+def _run_export_command(arguments: Namespace, data_file: Path) -> int:
+    """Export saved expenses to a CSV file."""
+    try:
+        month = validate_month(arguments.month) if arguments.month else None
+        expenses = load_expenses(data_file)
+        filtered_expenses = _filter_expenses_by_month(expenses, month)
+        export_expenses_to_csv(filtered_expenses, Path(arguments.output))
+    except (ExpenseStorageError, ExpenseExportError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    print(f"Exported {len(filtered_expenses)} expense record(s) to {arguments.output}.")
     return 0
 
 
